@@ -1,0 +1,955 @@
+<!doctype html>
+<!--
+  Bazaar Flips: live Hypixel SkyBlock Bazaar + Auction House flip finder.
+  Pulls public data straight from api.hypixel.net (no API key needed).
+  Host it anywhere that serves static files (GitHub Pages, a home server, etc.).
+  Settings and tracked items are saved in this browser only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Flips">
+<meta name="theme-color" content="#120b1f">
+<title>Bazaar Flips</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪙</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #120b1f;
+    --panel: #1a1130;
+    --edge: #3b1f7a;
+    --edge-outer: #07030f;
+    --field: #110a20;
+    --text: #ece8f5;
+    --muted: #a69dbf;
+    --gold: #ffb52a;
+    --gold-shadow: #3d2800;
+    --green: #5fe56f;
+    --red: #ff6b6b;
+    --aqua: #68e8f0;
+    --pixel: "Pixelify Sans", "Courier New", monospace;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f0f9;
+      --panel: #ffffff;
+      --edge: #c9b8ef;
+      --edge-outer: #e2d9f4;
+      --field: #f7f4fc;
+      --text: #1d1530;
+      --muted: #5e5577;
+      --gold: #9b5c00;
+      --gold-shadow: rgba(155, 92, 0, .16);
+      --green: #17853a;
+      --red: #c4302b;
+      --aqua: #0b7c86;
+      color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 400 15px/1.45 var(--sans);
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 20px 14px 40px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+  h1 {
+    margin: 0;
+    font: 700 30px/1 var(--pixel);
+    color: var(--gold);
+    text-shadow: 2px 2px 0 var(--gold-shadow);
+  }
+  .status { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+
+  .btn {
+    font: 600 14px var(--sans);
+    color: var(--text);
+    background: var(--panel);
+    border: 2px solid var(--edge);
+    border-radius: 4px;
+    padding: 8px 14px;
+    min-height: 42px;
+    cursor: pointer;
+  }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn.small { min-height: 34px; padding: 4px 10px; font-size: 13px; }
+  :is(.btn, .tab, .segbtn, .remove, input, select, summary):focus-visible {
+    outline: 2px solid var(--aqua);
+    outline-offset: 2px;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+    margin: 18px 0 10px;
+    padding: 4px;
+    background: var(--edge-outer);
+    border-radius: 6px;
+  }
+  .tab {
+    font: 600 13px var(--sans);
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    min-height: 42px;
+    padding: 0 2px;
+    cursor: pointer;
+  }
+  .tab[aria-selected="true"] {
+    color: var(--text);
+    background: var(--panel);
+    box-shadow: inset 0 0 0 2px var(--edge);
+  }
+
+  details.settings { margin: 0 0 6px; }
+  details.settings summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 6px 2px;
+    width: fit-content;
+  }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 12px;
+    margin-top: 4px;
+    background: var(--panel);
+    border: 2px solid var(--edge);
+    border-radius: 4px;
+  }
+  label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  label.check { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; color: var(--text); font-size: 14px; }
+  select, input:not([type="checkbox"]) {
+    font: 500 15px var(--sans);
+    color: var(--text);
+    background: var(--field);
+    border: 2px solid var(--edge);
+    border-radius: 4px;
+    padding: 8px 10px;
+    min-height: 42px;
+    width: 100%;
+  }
+  input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
+
+  .intro { margin: 12px 2px; font-size: 14px; color: var(--muted); }
+  .empty { margin: 16px 2px; color: var(--muted); }
+  .notice {
+    margin: 12px 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--red);
+    background: var(--panel);
+    border-radius: 2px;
+  }
+
+  .plan {
+    margin: 12px 0;
+    padding: 12px 14px;
+    background: var(--panel);
+    border-left: 4px solid var(--gold);
+    border-radius: 2px;
+  }
+  .plan-total { display: block; font: 700 26px/1.1 var(--pixel); color: var(--green); }
+  .plan p { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+
+  .toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 12px 0 4px; }
+  .toolbar label { flex: 1; min-width: 140px; }
+  .progress { margin: 8px 2px 0; font-size: 13px; color: var(--muted); }
+
+  .seg { display: inline-flex; gap: 4px; padding: 4px; margin-top: 4px; background: var(--edge-outer); border-radius: 6px; }
+  .segbtn {
+    font: 600 13px var(--sans);
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    padding: 0 14px;
+    min-height: 36px;
+    cursor: pointer;
+  }
+  .segbtn[aria-pressed="true"] { color: var(--text); background: var(--panel); box-shadow: inset 0 0 0 2px var(--edge); }
+
+  ol.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .row {
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 2px solid var(--edge-outer);
+    box-shadow: inset 0 0 0 2px var(--edge);
+    border-radius: 3px;
+  }
+  .row-head { display: flex; align-items: baseline; gap: 10px; }
+  .rank { min-width: 1.3em; font: 500 15px var(--pixel); color: var(--muted); }
+  .name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .name small { font-weight: 400; color: var(--muted); }
+  .hr { white-space: nowrap; font: 700 19px var(--pixel); color: var(--green); }
+  .sub { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+  .sub strong { color: var(--text); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 6px; }
+  .pair > div { padding: 6px 10px; background: var(--field); border-radius: 3px; }
+  .pair dt { font-size: 12px; color: var(--muted); }
+  .pair dd { margin: 0; font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; }
+  .stats { margin: 0; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .row-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+  .warn { color: var(--red); }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .remove {
+    font: 500 13px var(--sans);
+    color: var(--muted);
+    background: transparent;
+    border: 0;
+    padding: 6px 4px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .addform {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 12px;
+    background: var(--panel);
+    border: 2px solid var(--edge);
+    border-radius: 4px;
+  }
+  .full { grid-column: 1 / -1; }
+  .formerr { margin: 0; color: var(--red); font-size: 13px; }
+  .formerr:empty { display: none; }
+
+  footer { margin-top: 22px; font-size: 12px; color: var(--muted); }
+
+  @media (max-width: 360px) {
+    .settings-grid, .addform, .pair { grid-template-columns: 1fr; }
+    .tab { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Bazaar Flips</h1>
+      <p class="status" id="status" aria-live="polite">Loading prices…</p>
+    </div>
+    <button class="btn" id="refresh" type="button">Refresh</button>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" data-tab="flips" aria-selected="true">Flips</button>
+    <button class="tab" role="tab" data-tab="ah" aria-selected="false">Auctions</button>
+    <button class="tab" role="tab" data-tab="crafts" aria-selected="false">Crafts</button>
+    <button class="tab" role="tab" data-tab="npc" aria-selected="false">NPC</button>
+    <button class="tab" role="tab" data-tab="watch" aria-selected="false">Holding</button>
+  </nav>
+
+  <details class="settings">
+    <summary>Settings</summary>
+    <div class="settings-grid">
+      <label>Budget, in millions
+        <input id="set-budget" type="number" inputmode="decimal" min="1" step="any">
+      </label>
+      <label>Orders stay up for
+        <select id="set-hours">
+          <option value="1">1 hour</option>
+          <option value="2">2 hours</option>
+          <option value="4">4 hours</option>
+          <option value="8">8 hours</option>
+          <option value="12">12 hours</option>
+          <option value="24">24 hours</option>
+        </select>
+      </label>
+      <label>Bazaar tax
+        <select id="set-tax">
+          <option value="1.25">1.25% (default)</option>
+          <option value="1.125">1.125%</option>
+          <option value="1">1%</option>
+        </select>
+      </label>
+      <label>Min trades per week
+        <select id="set-minvol">
+          <option value="1000">1,000</option>
+          <option value="5000">5,000</option>
+          <option value="10000">10,000</option>
+          <option value="50000">50,000</option>
+          <option value="100000">100,000</option>
+        </select>
+      </label>
+      <label class="full">Your share of each item's trades
+        <select id="set-share">
+          <option value="2">2%, very crowded items</option>
+          <option value="5">5%, typical</option>
+          <option value="10">10%, quiet items</option>
+          <option value="25">25%, optimistic</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="set-suspicious"> Show Bazaar items with suspiciously wide spreads</label>
+    </div>
+  </details>
+
+  <main id="view"></main>
+  <datalist id="itemlist"></datalist>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+(() => {
+  const API_BAZAAR = "https://api.hypixel.net/v2/skyblock/bazaar";
+  const API_ITEMS = "https://api.hypixel.net/v2/resources/skyblock/items";
+  const API_AH = "https://api.hypixel.net/v2/skyblock/auctions";
+  const REFRESH_MS = 60000;
+  const ORDER_CAP = 71680;
+
+  // Single-ingredient compaction recipes: [output, input, amount]
+  const RECIPES = [
+    ["ENCHANTED_GOLD", "GOLD_INGOT", 160], ["ENCHANTED_GOLD_BLOCK", "ENCHANTED_GOLD", 160],
+    ["ENCHANTED_IRON", "IRON_INGOT", 160], ["ENCHANTED_IRON_BLOCK", "ENCHANTED_IRON", 160],
+    ["ENCHANTED_DIAMOND", "DIAMOND", 160], ["ENCHANTED_DIAMOND_BLOCK", "ENCHANTED_DIAMOND", 160],
+    ["ENCHANTED_EMERALD", "EMERALD", 160], ["ENCHANTED_EMERALD_BLOCK", "ENCHANTED_EMERALD", 160],
+    ["ENCHANTED_REDSTONE", "REDSTONE", 160], ["ENCHANTED_REDSTONE_BLOCK", "ENCHANTED_REDSTONE", 160],
+    ["ENCHANTED_LAPIS_LAZULI", "INK_SACK:4", 160], ["ENCHANTED_LAPIS_LAZULI_BLOCK", "ENCHANTED_LAPIS_LAZULI", 160],
+    ["ENCHANTED_COAL", "COAL", 160], ["ENCHANTED_COAL_BLOCK", "ENCHANTED_COAL", 160],
+    ["ENCHANTED_COBBLESTONE", "COBBLESTONE", 160], ["ENCHANTED_OBSIDIAN", "OBSIDIAN", 160],
+    ["ENCHANTED_QUARTZ", "QUARTZ", 160], ["ENCHANTED_QUARTZ_BLOCK", "ENCHANTED_QUARTZ", 160],
+    ["ENCHANTED_GLOWSTONE_DUST", "GLOWSTONE_DUST", 160], ["ENCHANTED_FLINT", "FLINT", 160],
+    ["ENCHANTED_SAND", "SAND", 160], ["ENCHANTED_RED_SAND", "SAND:1", 160],
+    ["ENCHANTED_ICE", "ICE", 160], ["ENCHANTED_PACKED_ICE", "ENCHANTED_ICE", 160],
+    ["ENCHANTED_SNOW_BLOCK", "SNOW_BLOCK", 160], ["ENCHANTED_ENDSTONE", "ENDER_STONE", 160],
+    ["ENCHANTED_NETHERRACK", "NETHERRACK", 160], ["ENCHANTED_MYCELIUM", "MYCEL", 160],
+    ["ENCHANTED_MITHRIL", "MITHRIL_ORE", 160], ["ENCHANTED_TITANIUM", "TITANIUM_ORE", 160],
+    ["ENCHANTED_SUGAR", "SUGAR_CANE", 160], ["ENCHANTED_SUGAR_CANE", "ENCHANTED_SUGAR", 160],
+    ["ENCHANTED_CARROT", "CARROT_ITEM", 160],
+    ["ENCHANTED_POTATO", "POTATO_ITEM", 160], ["ENCHANTED_BAKED_POTATO", "ENCHANTED_POTATO", 160],
+    ["ENCHANTED_PUMPKIN", "PUMPKIN", 160], ["POLISHED_PUMPKIN", "ENCHANTED_PUMPKIN", 160],
+    ["ENCHANTED_MELON", "MELON", 160], ["ENCHANTED_MELON_BLOCK", "ENCHANTED_MELON", 160],
+    ["ENCHANTED_CACTUS_GREEN", "CACTUS", 160], ["ENCHANTED_CACTUS", "ENCHANTED_CACTUS_GREEN", 160],
+    ["ENCHANTED_NETHER_STALK", "NETHER_STALK", 160], ["MUTANT_NETHER_STALK", "ENCHANTED_NETHER_STALK", 160],
+    ["ENCHANTED_COCOA", "INK_SACK:3", 160], ["ENCHANTED_SEEDS", "SEEDS", 160],
+    ["ENCHANTED_RED_MUSHROOM", "RED_MUSHROOM", 160], ["ENCHANTED_BROWN_MUSHROOM", "BROWN_MUSHROOM", 160],
+    ["ENCHANTED_SLIME_BALL", "SLIME_BALL", 160], ["ENCHANTED_SLIME_BLOCK", "ENCHANTED_SLIME_BALL", 160],
+    ["ENCHANTED_BONE", "BONE", 160], ["ENCHANTED_BONE_BLOCK", "ENCHANTED_BONE", 160],
+    ["ENCHANTED_STRING", "STRING", 160], ["ENCHANTED_SPIDER_EYE", "SPIDER_EYE", 160],
+    ["ENCHANTED_ROTTEN_FLESH", "ROTTEN_FLESH", 160], ["ENCHANTED_GUNPOWDER", "SULPHUR", 160],
+    ["ENCHANTED_ENDER_PEARL", "ENDER_PEARL", 20], ["ENCHANTED_GHAST_TEAR", "GHAST_TEAR", 5],
+    ["ENCHANTED_BLAZE_POWDER", "BLAZE_ROD", 160], ["ENCHANTED_BLAZE_ROD", "ENCHANTED_BLAZE_POWDER", 160],
+    ["ENCHANTED_MAGMA_CREAM", "MAGMA_CREAM", 160],
+    ["ENCHANTED_PRISMARINE_SHARD", "PRISMARINE_SHARD", 80], ["ENCHANTED_PRISMARINE_CRYSTALS", "PRISMARINE_CRYSTALS", 80],
+    ["ENCHANTED_RAW_FISH", "RAW_FISH", 160], ["ENCHANTED_COOKED_FISH", "ENCHANTED_RAW_FISH", 160],
+    ["ENCHANTED_RAW_SALMON", "RAW_FISH:1", 160], ["ENCHANTED_COOKED_SALMON", "ENCHANTED_RAW_SALMON", 160],
+    ["ENCHANTED_INK_SACK", "INK_SACK", 80], ["ENCHANTED_CLAY_BALL", "CLAY_BALL", 160],
+    ["ENCHANTED_LILY_PAD", "WATER_LILY", 160],
+    ["ENCHANTED_SPONGE", "SPONGE", 40], ["ENCHANTED_WET_SPONGE", "ENCHANTED_SPONGE", 40],
+    ["ENCHANTED_RAW_CHICKEN", "RAW_CHICKEN", 160], ["ENCHANTED_FEATHER", "FEATHER", 160],
+    ["ENCHANTED_EGG", "EGG", 144],
+    ["ENCHANTED_PORK", "PORK", 160], ["ENCHANTED_GRILLED_PORK", "ENCHANTED_PORK", 160],
+    ["ENCHANTED_RAW_BEEF", "RAW_BEEF", 160], ["ENCHANTED_LEATHER", "LEATHER", 576],
+    ["ENCHANTED_MUTTON", "MUTTON", 160], ["ENCHANTED_COOKED_MUTTON", "ENCHANTED_MUTTON", 160],
+    ["ENCHANTED_RABBIT", "RABBIT", 160],
+    ["ENCHANTED_OAK_LOG", "LOG", 160], ["ENCHANTED_SPRUCE_LOG", "LOG:1", 160],
+    ["ENCHANTED_BIRCH_LOG", "LOG:2", 160], ["ENCHANTED_JUNGLE_LOG", "LOG:3", 160],
+    ["ENCHANTED_ACACIA_LOG", "LOG_2", 160], ["ENCHANTED_DARK_OAK_LOG", "LOG_2:1", 160]
+  ];
+
+  // Auction items whose value depends on hidden rolls (attributes), so same-name comparisons mislead.
+  const AH_SKIP = /attribute shard|crimson|aurora|terror|fervor|hollow|molten|implosion belt|gauntlet of contagion|furniture/i;
+
+  // ---------- storage ----------
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  const DEFAULTS = { tax: 1.25, minVol: 5000, share: 5, craftMode: "orders", suspicious: false, budget: 100, hours: 4, ahMinProfit: 1000000 };
+  const settings = Object.assign({}, DEFAULTS, store.get("bf_settings", {}));
+  let positions = store.get("bf_positions", null);
+  if (!Array.isArray(positions)) positions = [{ id: "ENCHANTED_GOLD_BLOCK", qty: 320, cost: 76860.4 }];
+  const saveSettings = () => store.set("bf_settings", settings);
+  const savePositions = () => store.set("bf_positions", positions);
+
+  // ---------- state ----------
+  let products = {};
+  let names = {};
+  let npcPrices = {};
+  let itemsLoaded = false;
+  let lastUpdated = 0;
+  let loading = false;
+  let errorMsg = "";
+  let tab = store.get("bf_tab", "flips");
+  let datalistCount = -1;
+  const ah = { status: "idle", page: 0, total: 0, skipped: 0, groups: null, scannedAt: 0, error: "" };
+
+  // ---------- helpers ----------
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const nf1 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+  const nf0 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+  const coins = (n) => nf1.format(n);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const pct = (n) => (n * 100).toFixed(2) + "%";
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function short(n) {
+    const a = Math.abs(n), s = n < 0 ? "−" : "";
+    if (a >= 1e9) return s + (a / 1e9).toFixed(2) + "B";
+    if (a >= 1e6) return s + (a / 1e6).toFixed(2) + "M";
+    if (a >= 1e3) return s + (a / 1e3).toFixed(1) + "k";
+    return s + (a < 10 ? a.toFixed(1) : a.toFixed(0));
+  }
+  const signed = (n) => (n >= 0 ? "+" : "") + short(n);
+  const taxKeep = () => 1 - settings.tax / 100;
+  const budgetCoins = () => settings.budget * 1e6;
+  const shareUnits = (weekly) => Math.floor((weekly / 168) * (settings.share / 100) * settings.hours);
+  const clean = (s) => String(s || "").replace(/§./g, "").trim();
+  const titleCase = (s) => String(s || "").toLowerCase().replace(/(^|[\s_])\w/g, (m) => m.toUpperCase()).replace(/_/g, " ");
+
+  function prettify(id) {
+    return id.replace(/:/g, " ").split("_").filter(Boolean)
+      .map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+  }
+  const nameOf = (id) => names[id] || prettify(id);
+
+  // sell_summary = buy orders (what insta-sell hits), buy_summary = sell offers (what insta-buy hits).
+  function book(p) {
+    const bids = (p.sell_summary || []).map((o) => o.pricePerUnit);
+    const asks = (p.buy_summary || []).map((o) => o.pricePerUnit);
+    return {
+      bid: bids.length ? Math.max(...bids) : null,
+      ask: asks.length ? Math.min(...asks) : null
+    };
+  }
+
+  async function getJSON(url) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      if (data.success === false) throw new Error(data.cause || "API error");
+      return data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  async function getJSONRetry(url, tries = 3) {
+    for (let i = 0; ; i++) {
+      try { return await getJSON(url); }
+      catch (e) { if (i >= tries - 1) throw e; await sleep(800 * (i + 1)); }
+    }
+  }
+
+  // ---------- data loading ----------
+  async function loadItems() {
+    const cached = store.get("bf_items", null);
+    if (cached && Date.now() - cached.ts < 864e5 && cached.names) {
+      names = cached.names; npcPrices = cached.npc || {}; itemsLoaded = true;
+      return;
+    }
+    try {
+      const data = await getJSON(API_ITEMS);
+      const n = {}, np = {};
+      for (const it of data.items || []) {
+        if (it.id && it.name) n[it.id] = clean(it.name);
+        if (it.id && it.npc_sell_price > 0) np[it.id] = it.npc_sell_price;
+      }
+      names = n; npcPrices = np; itemsLoaded = true;
+      store.set("bf_items", { ts: Date.now(), names: n, npc: np });
+    } catch {
+      itemsLoaded = false;
+    }
+  }
+
+  async function refresh() {
+    if (loading) return;
+    loading = true;
+    $("#refresh").disabled = true;
+    updateStatus();
+    const jobs = [getJSON(API_BAZAAR)];
+    if (!itemsLoaded) jobs.push(loadItems());
+    try {
+      const [data] = await Promise.all(jobs);
+      products = data.products || {};
+      lastUpdated = data.lastUpdated || Date.now();
+      errorMsg = "";
+    } catch {
+      errorMsg = "Couldn't load Bazaar prices. Check your connection, then tap Refresh.";
+    } finally {
+      loading = false;
+      $("#refresh").disabled = false;
+      fillDatalist();
+      render();
+    }
+  }
+
+  // ---------- auction house scan ----------
+  function ahKey(a) {
+    const name = clean(a.item_name);
+    if (!name || AH_SKIP.test(name)) return null;
+    if (name === "Enchanted Book") {
+      const first = clean(String(a.item_lore || "").split("\n")[0]);
+      if (!first) return null;
+      return { key: "BOOK|" + first, label: first + " book" };
+    }
+    return { key: name + "|" + a.tier, label: name };
+  }
+
+  async function scanAH() {
+    if (ah.status === "scanning") return;
+    Object.assign(ah, { status: "scanning", page: 0, total: 0, skipped: 0, error: "" });
+    render();
+    const groups = new Map();
+    const seen = new Set();
+    const add = (list) => {
+      for (const a of list || []) {
+        if (!a.bin || a.claimed || !(a.starting_bid > 0) || seen.has(a.uuid)) continue;
+        seen.add(a.uuid);
+        const k = ahKey(a);
+        if (!k) continue;
+        let g = groups.get(k.key);
+        if (!g) { g = { label: k.label, tier: a.tier, items: [] }; groups.set(k.key, g); }
+        g.items.push({ p: a.starting_bid, u: a.uuid });
+      }
+    };
+    try {
+      const first = await getJSONRetry(API_AH + "?page=0");
+      ah.total = first.totalPages || 1;
+      add(first.auctions);
+      ah.page = 1;
+      updateAHProgress();
+      let next = 1;
+      const worker = async () => {
+        while (next < ah.total) {
+          const p = next++;
+          try { const d = await getJSONRetry(API_AH + "?page=" + p); add(d.auctions); }
+          catch { ah.skipped++; }
+          ah.page++;
+          updateAHProgress();
+        }
+      };
+      await Promise.all(Array.from({ length: 5 }, worker));
+      if (ah.skipped > ah.total / 2) throw new Error("too many pages failed");
+      ah.groups = groups;
+      ah.scannedAt = Date.now();
+      ah.status = "done";
+    } catch {
+      ah.status = ah.groups ? "done" : "idle";
+      ah.error = "The auction scan didn't finish. Check your connection, then tap Scan auctions again.";
+    }
+    render();
+  }
+
+  const ahListFee = (p) => (p >= 1e8 ? 0.025 : p >= 1e7 ? 0.02 : 0.01);
+
+  function computeAH() {
+    if (!ah.groups) return [];
+    const budget = budgetCoins(), minProfit = settings.ahMinProfit, out = [];
+    for (const g of ah.groups.values()) {
+      if (g.items.length < 4) continue;
+      const s = g.items.slice().sort((a, b) => a.p - b.p);
+      const [a0, a1, a2] = s;
+      if (a0.p > budget) continue;
+      if (a1.p > a0.p * 3) continue;          // gap too big, likely a different version of the item
+      if (a2.p > a1.p * 1.1) continue;        // second cheapest is a lone step, not the real market
+      const relist = Math.floor(a1.p) - 1;
+      const fees = relist * (ahListFee(relist) + (relist >= 1e6 ? 0.01 : 0));
+      const profit = relist - fees - a0.p;
+      if (profit < minProfit) continue;
+      out.push({ label: g.label, tier: g.tier, buy: a0.p, uuid: a0.u, relist, profit, margin: profit / a0.p, count: s.length });
+    }
+    return out.sort((x, y) => y.profit - x.profit);
+  }
+
+  // ---------- bazaar calculations ----------
+  function flipCandidates() {
+    const keep = taxKeep(), out = [];
+    for (const id in products) {
+      const p = products[id], q = p.quick_status || {};
+      const { bid, ask } = book(p);
+      if (!bid || !ask) continue;
+      const buyAt = r1(bid + 0.1), sellAt = r1(ask - 0.1);
+      if (sellAt <= buyAt) continue;
+      const unit = sellAt * keep - buyAt;
+      if (unit <= 0) continue;
+      const vol = Math.min(q.buyMovingWeek || 0, q.sellMovingWeek || 0);
+      if (vol < settings.minVol) continue;
+      const suspicious = (ask - bid) / bid > 0.25;
+      if (suspicious && !settings.suspicious) continue;
+      const cap = Math.min(ORDER_CAP, shareUnits(vol));
+      if (cap < 1) continue;
+      out.push({ id, buyAt, sellAt, unit, margin: unit / buyAt, vol, suspicious, cap });
+    }
+    return out;
+  }
+
+  // Spread the budget across up to 10 flips, each capped by how much you could realistically fill.
+  function planFlips() {
+    const budget = budgetCoins(), cands = flipCandidates(), chosen = [], used = new Set();
+    let remaining = budget;
+    for (let k = 0; k < 10; k++) {
+      let best = null;
+      for (const c of cands) {
+        if (used.has(c.id)) continue;
+        const qty = Math.min(c.cap, Math.floor(remaining / c.buyAt));
+        if (qty < 1) continue;
+        const profit = qty * c.unit;
+        if (!best || profit > best.profit) best = { ...c, qty, cost: qty * c.buyAt, profit };
+      }
+      if (!best || best.profit < 10000) break;
+      chosen.push(best); used.add(best.id); remaining -= best.cost;
+    }
+    const profit = chosen.reduce((s, c) => s + c.profit, 0);
+    return { chosen, budget, spent: budget - remaining, profit };
+  }
+
+  function computeCrafts() {
+    const keep = taxKeep(), orders = settings.craftMode === "orders", budget = budgetCoins(), out = [];
+    for (const [outId, inId, qty] of RECIPES) {
+      const po = products[outId], pi = products[inId];
+      if (!po || !pi) continue;
+      const bo = book(po), bi = book(pi);
+      const inPrice = orders ? (bi.bid ? r1(bi.bid + 0.1) : null) : bi.ask;
+      const outPrice = orders ? (bo.ask ? r1(bo.ask - 0.1) : null) : bo.bid;
+      if (!inPrice || !outPrice) continue;
+      const cost = inPrice * qty;
+      const profit = outPrice * keep - cost;
+      if (profit <= 0) continue;
+      const qo = po.quick_status || {}, qi = pi.quick_status || {};
+      const outVol = orders ? (qo.buyMovingWeek || 0) : (qo.sellMovingWeek || 0);
+      const inVol = (orders ? (qi.sellMovingWeek || 0) : (qi.buyMovingWeek || 0)) / qty;
+      const crafts = Math.min(Math.floor(budget / cost), shareUnits(Math.min(outVol, inVol)));
+      if (crafts < 1) continue;
+      out.push({ id: outId, inId, qty, inPrice, outPrice, cost, profit, margin: profit / cost, crafts, batch: crafts * profit });
+    }
+    return out.sort((a, b) => b.batch - a.batch);
+  }
+
+  function computeNpc() {
+    const budget = budgetCoins(), out = [];
+    for (const id in products) {
+      const npc = npcPrices[id];
+      if (!npc) continue;
+      const p = products[id], q = p.quick_status || {};
+      const { bid, ask } = book(p);
+      let row = null;
+      if (ask && ask < npc) {
+        row = { id, method: "Insta-buy", price: ask, unit: npc - ask, vol: q.buyMovingWeek || 0 };
+      } else if (bid && r1(bid + 0.1) < npc) {
+        const price = r1(bid + 0.1);
+        row = { id, method: "Buy order", price, unit: npc - price, vol: q.sellMovingWeek || 0 };
+      }
+      if (!row) continue;
+      row.units = Math.min(Math.floor(budget / row.price), shareUnits(row.vol));
+      if (row.units < 1) continue;
+      row.npc = npc;
+      row.batch = row.units * row.unit;
+      out.push(row);
+    }
+    return out.sort((a, b) => b.batch - a.batch);
+  }
+
+  // ---------- views ----------
+  const big = (n) => `<span class="hr">+${short(n)}</span>`;
+  const hoursText = () => settings.hours === 1 ? "1 hour" : settings.hours + " hours";
+
+  function flipRow(f, i) {
+    return `<li class="row">
+      <div class="row-head"><span class="rank">${i + 1}</span><span class="name">${esc(nameOf(f.id))}</span>${big(f.profit)}</div>
+      <p class="sub">Buy <strong>${nf0.format(f.qty)}</strong> for <strong>${short(f.cost)}</strong></p>
+      <dl class="pair">
+        <div><dt>Buy order at</dt><dd>${coins(f.buyAt)}</dd></div>
+        <div><dt>Sell order at</dt><dd>${coins(f.sellAt)}</dd></div>
+      </dl>
+      <p class="stats">${short(f.unit)} profit each, ${pct(f.margin)} margin, ${short(f.vol)} trades/wk${f.suspicious ? ` <span class="warn">Wide spread, check the price history first</span>` : ""}</p>
+    </li>`;
+  }
+
+  function viewFlips() {
+    const plan = planFlips();
+    let h = `<p class="intro">Place each buy order at the first price. Once it fills, list a sell order at the second. Profit is after ${settings.tax}% tax.</p>`;
+    if (!plan.chosen.length) return h + `<p class="empty">No flips pass your filters right now. Lower the minimum trades in Settings.</p>`;
+    const left = plan.budget - plan.spent;
+    h += `<section class="plan" aria-label="Plan summary">
+      <span class="plan-total">+${short(plan.profit)}</span>
+      <p>If these ${plan.chosen.length} orders all fill within ${hoursText()}, using ${short(plan.spent)} of your ${short(plan.budget)}. That's about ${short(plan.profit / settings.hours)} per hour.</p>
+      ${left > plan.budget * 0.05 ? `<p>${short(left)} stays unused because these items don't trade fast enough to absorb more. Leave orders up longer in Settings to put more to work.</p>` : ""}
+    </section>`;
+    return h + `<ol class="list">${plan.chosen.map(flipRow).join("")}</ol>`;
+  }
+
+  function ahRow(a, i) {
+    return `<li class="row">
+      <div class="row-head"><span class="rank">${i + 1}</span><span class="name">${esc(a.label)} <small>${esc(titleCase(a.tier))}</small></span>${big(a.profit)}</div>
+      <dl class="pair">
+        <div><dt>Buy the BIN at</dt><dd>${coins(a.buy)}</dd></div>
+        <div><dt>Relist at</dt><dd>${coins(a.relist)}</dd></div>
+      </dl>
+      <p class="stats">${short(a.profit)} profit after AH fees, ${pct(a.margin)} margin, ${a.count} listed</p>
+      <div class="row-foot">
+        <button class="btn small" type="button" data-copy="/viewauction ${esc(a.uuid)}">Copy /viewauction</button>
+        <span class="sub">Check the enchants and upgrades match the other listings.</span>
+      </div>
+    </li>`;
+  }
+
+  function ahProgressText() {
+    if (ah.status === "scanning") return ah.total ? `Scanning auctions, page ${ah.page} of ${ah.total}…` : "Starting the scan…";
+    if (ah.scannedAt) {
+      const m = Math.floor((Date.now() - ah.scannedAt) / 60000);
+      return `Scanned ${m < 1 ? "just now" : m + "m ago"}${ah.skipped ? `, ${ah.skipped} ${ah.skipped === 1 ? "page" : "pages"} skipped` : ""}. Snipes go fast, so rescan before you buy.`;
+    }
+    return "Not scanned yet. A scan downloads every live auction, so Wi-Fi is best.";
+  }
+  function updateAHProgress() {
+    const el = $("#ahprog");
+    if (el) el.textContent = ahProgressText();
+  }
+
+  function viewAH() {
+    const opts = [500000, 1000000, 2000000, 5000000, 10000000]
+      .map((v) => `<option value="${v}"${v === settings.ahMinProfit ? " selected" : ""}>${short(v)}</option>`).join("");
+    let h = `<p class="intro">Items whose cheapest BIN is well under the next cheapest copy. Buy it, then relist just under the next price. Only items up to your ${short(budgetCoins())} budget show.</p>
+      <div class="toolbar">
+        <button class="btn" type="button" id="ahscan"${ah.status === "scanning" ? " disabled" : ""}>Scan auctions</button>
+        <label>Min profit<select data-setting="ahMinProfit">${opts}</select></label>
+      </div>
+      <p class="progress" id="ahprog" aria-live="polite">${esc(ahProgressText())}</p>`;
+    if (ah.error) h += `<p class="notice">${esc(ah.error)}</p>`;
+    if (!ah.groups) return h;
+    const list = computeAH().slice(0, 10);
+    if (!list.length) return h + `<p class="empty">Nothing clears your minimum profit right now. Lower it or scan again in a few minutes.</p>`;
+    return h + `<ol class="list">${list.map(ahRow).join("")}</ol>
+      <p class="intro">There's no sales history in the auction data, so pricier items can take a while to resell. Attribute-based gear and furniture are left out because same-name comparisons don't work for them.</p>`;
+  }
+
+  function craftRow(c, i) {
+    const orders = settings.craftMode === "orders";
+    return `<li class="row">
+      <div class="row-head"><span class="rank">${i + 1}</span><span class="name">${esc(nameOf(c.id))}</span>${big(c.batch)}</div>
+      <p class="sub">Make <strong>${nf0.format(c.crafts)}</strong>: buy ${nf0.format(c.crafts * c.qty)} × ${esc(nameOf(c.inId))} at ${coins(c.inPrice)}</p>
+      <dl class="pair">
+        <div><dt>Cost per craft</dt><dd>${coins(c.cost)}</dd></div>
+        <div><dt>${orders ? "Sell order at" : "Insta-sells for"}</dt><dd>${coins(c.outPrice)}</dd></div>
+      </dl>
+      <p class="stats">${short(c.profit)} profit per craft after tax, ${pct(c.margin)} margin</p>
+    </li>`;
+  }
+
+  function viewCrafts() {
+    const orders = settings.craftMode === "orders";
+    const list = computeCrafts().slice(0, 5);
+    let h = `<div class="seg" role="group" aria-label="How you trade">
+      <button class="segbtn" data-mode="orders" aria-pressed="${orders}">Use orders</button>
+      <button class="segbtn" data-mode="instant" aria-pressed="${!orders}">Instant</button>
+    </div>
+    <p class="intro">${orders
+      ? "Buy the ingredient with buy orders, craft, then list a sell order. Bigger margin, slower."
+      : "Insta-buy the ingredient, craft, then insta-sell. Fast, smaller margin."} Each one is sized to your budget on its own. These are standard compaction recipes, so confirm the recipe in-game before a big batch.</p>`;
+    if (!list.length) return h + `<p class="empty">No profitable crafts in this mode right now. Try ${orders ? "Instant" : "Use orders"}, or check back later.</p>`;
+    h += `<ol class="list">${list.map(craftRow).join("")}</ol>`;
+    if (list.length < 5) h += `<p class="empty">Only ${list.length} profitable right now.</p>`;
+    return h;
+  }
+
+  function npcRow(n, i) {
+    return `<li class="row">
+      <div class="row-head"><span class="rank">${i + 1}</span><span class="name">${esc(nameOf(n.id))}</span>${big(n.batch)}</div>
+      <p class="sub">Buy <strong>${nf0.format(n.units)}</strong> for <strong>${short(n.units * n.price)}</strong></p>
+      <dl class="pair">
+        <div><dt>${n.method === "Insta-buy" ? "Insta-buy at" : "Buy order at"}</dt><dd>${coins(n.price)}</dd></div>
+        <div><dt>NPC pays</dt><dd>${coins(n.npc)}</dd></div>
+      </dl>
+      <p class="stats">${short(n.unit)} profit each, ${short(n.vol)} trades/wk</p>
+    </li>`;
+  }
+
+  function viewNpc() {
+    let h = `<p class="intro">Buy on the Bazaar and sell to any NPC shop. NPC sales have no tax.</p>`;
+    if (!itemsLoaded) return h + `<p class="empty">NPC prices haven't loaded yet. Tap Refresh to try again.</p>`;
+    const list = computeNpc().slice(0, 10);
+    if (!list.length) return h + `<p class="empty">Nothing on the Bazaar is under its NPC price right now.</p>`;
+    return h + `<ol class="list">${list.map(npcRow).join("")}</ol>`;
+  }
+
+  function posRow(p, i) {
+    const keep = taxKeep();
+    const prod = products[p.id];
+    const b = prod ? book(prod) : { bid: null, ask: null };
+    const basis = p.cost * p.qty;
+    const insta = b.bid ? b.bid * p.qty * keep : null;
+    const order = b.ask ? r1(b.ask - 0.1) * p.qty * keep : null;
+    const cell = (v) => v == null
+      ? `<dd>No price</dd>`
+      : `<dd>${short(v)} <span class="${v - basis >= 0 ? "pos" : "neg"}">${signed(v - basis)}</span></dd>`;
+    const label = esc(nameOf(p.id));
+    return `<li class="row">
+      <div class="row-head"><span class="name">${label}</span><button class="remove" type="button" data-remove="${i}" aria-label="Stop tracking ${label}">Remove</button></div>
+      <p class="sub">${nf0.format(p.qty)} bought at ${coins(p.cost)}, ${short(basis)} total</p>
+      <dl class="pair">
+        <div><dt>Insta-sell now</dt>${cell(insta)}</div>
+        <div><dt>With sell orders</dt>${cell(order)}</div>
+      </dl>
+      <p class="stats">Break-even sell price after tax: ${coins(p.cost / keep)}${b.ask ? `, lowest sell order now ${coins(b.ask)}` : ""}</p>
+    </li>`;
+  }
+
+  function viewWatch() {
+    let h = `<p class="intro">Track what you're holding. Values are after ${settings.tax}% tax.</p>`;
+    h += positions.length
+      ? `<ol class="list">${positions.map(posRow).join("")}</ol>`
+      : `<p class="empty">Nothing tracked yet. Add an item below.</p>`;
+    h += `<form id="addpos" class="addform" autocomplete="off" novalidate>
+      <label class="full">Item<input name="item" list="itemlist" placeholder="Enchanted Gold Block" autocapitalize="words"></label>
+      <label>Amount<input name="qty" type="number" inputmode="numeric" min="1" step="1"></label>
+      <label>Paid per unit<input name="cost" type="number" inputmode="decimal" min="0" step="any"></label>
+      <p class="formerr full" id="formerr" role="alert"></p>
+      <button class="btn full" type="submit">Add item</button>
+    </form>`;
+    return h;
+  }
+
+  function fillDatalist() {
+    const ids = Object.keys(products);
+    const sig = ids.length + (itemsLoaded ? 1e6 : 0);
+    if (!ids.length || sig === datalistCount) return;
+    datalistCount = sig;
+    const opts = ids.map(nameOf).sort((a, b) => a.localeCompare(b));
+    $("#itemlist").innerHTML = opts.map((n) => `<option value="${esc(n)}"></option>`).join("");
+  }
+
+  // ---------- render ----------
+  function updateStatus() {
+    const el = $("#status");
+    if (loading && !lastUpdated) { el.textContent = "Loading prices…"; return; }
+    if (loading) { el.textContent = "Refreshing…"; return; }
+    if (!lastUpdated) { el.textContent = "No prices yet"; return; }
+    const s = Math.max(0, Math.round((Date.now() - lastUpdated) / 1000));
+    const ago = s < 60 ? s + "s" : Math.floor(s / 60) + "m";
+    el.textContent = `Bazaar prices from ${ago} ago, refreshes every minute`;
+  }
+
+  function render() {
+    updateStatus();
+    document.querySelectorAll(".tab").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+
+    // Keep anything typed in the add form across auto-refreshes.
+    const form = $("#addpos");
+    const saved = form ? Object.fromEntries(new FormData(form)) : null;
+    const focused = form && form.contains(document.activeElement) ? document.activeElement.name : null;
+
+    const view = $("#view");
+    const hasData = Object.keys(products).length > 0;
+    if (tab === "ah") {
+      view.innerHTML = viewAH();
+    } else if (!hasData) {
+      view.innerHTML = errorMsg ? `<p class="notice">${esc(errorMsg)}</p>` : `<p class="empty">Loading prices…</p>`;
+    } else {
+      const body = { flips: viewFlips, crafts: viewCrafts, npc: viewNpc, watch: viewWatch }[tab]();
+      view.innerHTML = (errorMsg ? `<p class="notice">${esc(errorMsg)} Showing the last prices that loaded.</p>` : "") + body;
+    }
+
+    const newForm = $("#addpos");
+    if (newForm && saved) {
+      for (const [k, v] of Object.entries(saved)) if (newForm.elements[k]) newForm.elements[k].value = v;
+      if (focused && newForm.elements[focused]) newForm.elements[focused].focus();
+    }
+
+    $("#foot").textContent = tab === "watch"
+      ? "Tracked items are saved on this device only."
+      : tab === "ah"
+        ? "AH fees are estimated: 1% listing fee under 10M, 2% under 100M, 2.5% above, plus 1% claim tax over 1M."
+        : `Sized for a ${short(budgetCoins())} budget, orders up for ${hoursText()}, and filling ${settings.share}% of each item's trades. Prices come from the public Hypixel API.`;
+  }
+
+  // ---------- events ----------
+  if (!["flips", "ah", "crafts", "npc", "watch"].includes(tab)) tab = "flips";
+  document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
+    tab = b.dataset.tab; store.set("bf_tab", tab); render();
+  }));
+  $("#refresh").addEventListener("click", refresh);
+
+  const bindSelect = (sel, key) => {
+    const el = $(sel);
+    el.value = String(settings[key]);
+    if (el.value !== String(settings[key])) { settings[key] = DEFAULTS[key]; el.value = String(DEFAULTS[key]); }
+    el.addEventListener("change", () => { settings[key] = Number(el.value); saveSettings(); render(); });
+  };
+  bindSelect("#set-tax", "tax");
+  bindSelect("#set-minvol", "minVol");
+  bindSelect("#set-share", "share");
+  bindSelect("#set-hours", "hours");
+
+  const bud = $("#set-budget");
+  bud.value = settings.budget;
+  bud.addEventListener("change", () => {
+    const v = Number(bud.value);
+    if (v > 0) { settings.budget = v; saveSettings(); render(); } else { bud.value = settings.budget; }
+  });
+
+  const sus = $("#set-suspicious");
+  sus.checked = !!settings.suspicious;
+  sus.addEventListener("change", () => { settings.suspicious = sus.checked; saveSettings(); render(); });
+
+  $("#view").addEventListener("change", (e) => {
+    const key = e.target.dataset && e.target.dataset.setting;
+    if (key) { settings[key] = Number(e.target.value); saveSettings(); render(); }
+  });
+
+  $("#view").addEventListener("click", async (e) => {
+    if (e.target.closest("#ahscan")) { scanAH(); return; }
+    const copy = e.target.closest("[data-copy]");
+    if (copy) {
+      const text = copy.dataset.copy;
+      try { await navigator.clipboard.writeText(text); copy.textContent = "Copied"; }
+      catch { window.prompt("Copy this command:", text); }
+      setTimeout(() => { copy.textContent = "Copy /viewauction"; }, 1500);
+      return;
+    }
+    const mode = e.target.closest("[data-mode]");
+    if (mode) { settings.craftMode = mode.dataset.mode; saveSettings(); render(); return; }
+    const rm = e.target.closest("[data-remove]");
+    if (rm) { positions.splice(Number(rm.dataset.remove), 1); savePositions(); render(); }
+  });
+
+  $("#view").addEventListener("submit", (e) => {
+    if (e.target.id !== "addpos") return;
+    e.preventDefault();
+    const f = e.target, err = $("#formerr");
+    const q = f.elements.item.value.trim().toLowerCase();
+    const qty = Number(f.elements.qty.value), cost = Number(f.elements.cost.value);
+    const id = Object.keys(products).find((k) => k.toLowerCase() === q || nameOf(k).toLowerCase() === q);
+    if (!id) { err.textContent = "No Bazaar item has that name. Pick one from the suggestions."; return; }
+    if (!(qty > 0)) { err.textContent = "Enter how many you bought."; return; }
+    if (!(cost > 0)) { err.textContent = "Enter what you paid per unit."; return; }
+    positions.push({ id, qty, cost });
+    savePositions();
+    f.reset();
+    render();
+  });
+
+  setInterval(() => { updateStatus(); if (ah.status !== "scanning") updateAHProgress(); }, 5000);
+  setInterval(() => { if (!document.hidden) refresh(); }, REFRESH_MS);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - lastUpdated > REFRESH_MS) refresh();
+  });
+
+  render();
+  refresh();
+})();
+</script>
+</body>
+</html>
